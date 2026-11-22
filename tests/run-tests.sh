@@ -44,7 +44,7 @@ awk 'NR==1  { $0 = substr($0,1,41) "X" substr($0,43) }
      NR==11 { $0 = substr($0,1,9) "20251231" substr($0,18) }
      { print }' data/GOALS.DAT > "$tmp/GOALS.DAT"
 DD_MATCHES=data/MATCHES.DAT DD_GOALS="$tmp/GOALS.DAT" \
-DD_SYSIN=cards/ALLGOALS.txt DD_SYSOUT="$tmp/report.txt" ./bin/goalstat >/dev/null
+DD_SYSIN=cards/ALLGOALS.txt DD_RPTOUT="$tmp/report.txt" ./bin/goalstat >/dev/null
 rc=$?
 rejects="$(grep -c '  REJECTED: GOALS RECORD' "$tmp/report.txt")"
 if [[ "$rc" == 8 && "$rejects" == 3 ]]; then

@@ -7,7 +7,9 @@ cd "$(dirname "$0")"
 card="${1:-cards/ALLGOALS.txt}"
 mkdir -p bin reports
 
-cobc -x -Wall -I copybooks -o bin/goalstat src/GOALSTAT.cbl
+# -D GNUCOBOL selects the PC file handling (see the >>IF blocks in the program).
+# -fassign-clause=external treats ASSIGN names as DD names, like IBM COBOL.
+cobc -x -Wall -D GNUCOBOL -fassign-clause=external -I copybooks -o bin/goalstat src/GOALSTAT.cbl
 
 # GnuCOBOL maps each ASSIGN name to a file through DD_<name> environment
 # variables, the same way JCL DD statements do on the mainframe.
@@ -15,11 +17,11 @@ name="$(basename "$card" .txt)"
 export DD_MATCHES=data/MATCHES.DAT
 export DD_GOALS=data/GOALS.DAT
 export DD_SYSIN="$card"
-export DD_SYSOUT="reports/$name.txt"
+export DD_RPTOUT="reports/$name.txt"
 
 set +e
 ./bin/goalstat
 rc=$?
 set -e
-cat "$DD_SYSOUT"
+cat "$DD_RPTOUT"
 exit $rc

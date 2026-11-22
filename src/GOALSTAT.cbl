@@ -17,7 +17,14 @@
       * FILES:    MATCHES  (IN)   MATCHREC LRECL=80                    *
       *           GOALS    (IN)   GOALREC  LRECL=100                   *
       *           SYSIN    (IN)   CONTROL CARDS, KEYWORD=VALUE         *
-      *           SYSOUT   (OUT)  REPORT, 132 COLUMNS                  *
+      *           RPTOUT   (OUT)  REPORT, LRECL=132                    *
+      *           SYSOUT   (OUT)  DISPLAY MESSAGES (RUNTIME DEFAULT)   *
+      *           SORTMSG  (OUT)  DFSORT MESSAGES (Z/OS ONLY)          *
+      *                                                                *
+      * BUILDS:   ONE SOURCE FOR BOTH COMPILERS. GNUCOBOL (PC / CI) IS *
+      *           COMPILED WITH -D GNUCOBOL AND USES LINE SEQUENTIAL   *
+      *           TEXT FILES. IBM ENTERPRISE COBOL (Z/OS) USES FIXED-  *
+      *           LENGTH SEQUENTIAL DATASETS (RECFM=FB).               *
       *                                                                *
       * CONTROL CARDS (ALL OPTIONAL, COMBINED WITH AND):               *
       *           PLAYER=SAKA          SCORER SURNAME (EXACT)          *
@@ -41,32 +48,59 @@
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
-           SELECT MATCH-FILE   ASSIGN TO 'MATCHES'
+      *    EACH ASSIGN NAME IS A DD NAME IN THE JCL (SEE ARSRUN PROC).
+      *    UNDER GNUCOBOL THE SAME NAMES MAP TO FILES THROUGH DD_NAME
+      *    ENVIRONMENT VARIABLES, SET BY RUN.PS1 / RUN.SH.
+           SELECT MATCH-FILE   ASSIGN TO MATCHES
+      >>IF GNUCOBOL IS DEFINED
                ORGANIZATION IS LINE SEQUENTIAL
+      >>ELSE
+               ORGANIZATION IS SEQUENTIAL
+      >>END-IF
                FILE STATUS IS WS-MATCH-STATUS.
-           SELECT GOAL-FILE    ASSIGN TO 'GOALS'
+           SELECT GOAL-FILE    ASSIGN TO GOALS
+      >>IF GNUCOBOL IS DEFINED
                ORGANIZATION IS LINE SEQUENTIAL
+      >>ELSE
+               ORGANIZATION IS SEQUENTIAL
+      >>END-IF
                FILE STATUS IS WS-GOAL-STATUS.
-           SELECT CARD-FILE    ASSIGN TO 'SYSIN'
+           SELECT CARD-FILE    ASSIGN TO SYSIN
+      >>IF GNUCOBOL IS DEFINED
                ORGANIZATION IS LINE SEQUENTIAL
+      >>ELSE
+               ORGANIZATION IS SEQUENTIAL
+      >>END-IF
                FILE STATUS IS WS-CARD-STATUS.
-           SELECT REPORT-FILE  ASSIGN TO 'SYSOUT'
+           SELECT REPORT-FILE  ASSIGN TO RPTOUT
+      >>IF GNUCOBOL IS DEFINED
                ORGANIZATION IS LINE SEQUENTIAL
+      >>ELSE
+               ORGANIZATION IS SEQUENTIAL
+      >>END-IF
                FILE STATUS IS WS-RPT-STATUS.
-           SELECT SORT-FILE    ASSIGN TO 'SORTWK1'.
+           SELECT SORT-FILE    ASSIGN TO SORTWK1.
 
        DATA DIVISION.
        FILE SECTION.
-       FD  MATCH-FILE.
+       FD  MATCH-FILE
+           RECORDING MODE IS F
+           BLOCK CONTAINS 0 RECORDS.
            COPY MATCHREC.
 
-       FD  GOAL-FILE.
+       FD  GOAL-FILE
+           RECORDING MODE IS F
+           BLOCK CONTAINS 0 RECORDS.
            COPY GOALREC.
 
-       FD  CARD-FILE.
+       FD  CARD-FILE
+           RECORDING MODE IS F
+           BLOCK CONTAINS 0 RECORDS.
        01  CARD-REC                  PIC X(80).
 
-       FD  REPORT-FILE.
+       FD  REPORT-FILE
+           RECORDING MODE IS F
+           BLOCK CONTAINS 0 RECORDS.
        01  REPORT-LINE               PIC X(132).
 
        SD  SORT-FILE.
@@ -359,7 +393,7 @@
            MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-DATE
            OPEN OUTPUT REPORT-FILE
            IF WS-RPT-STATUS NOT = '00'
-               DISPLAY 'GOALSTAT: CANNOT OPEN SYSOUT, STATUS '
+               DISPLAY 'GOALSTAT: CANNOT OPEN RPTOUT, STATUS '
                        WS-RPT-STATUS
                MOVE 12 TO RETURN-CODE
                STOP RUN
@@ -844,6 +878,11 @@
                MOVE '  NONE' TO WS-LINE
                PERFORM 9000-WRITE-LINE
            ELSE
+      >>IF GNUCOBOL IS NOT DEFINED
+      *        ON Z/OS, SEND DFSORT MESSAGES TO THEIR OWN DD SO THEY
+      *        DO NOT MIX WITH DISPLAY OUTPUT ON SYSOUT.
+               MOVE 'SORTMSG' TO SORT-MESSAGE
+      >>END-IF
                SORT SORT-FILE
                    ON DESCENDING KEY SR-GOALS
                    ON ASCENDING  KEY SR-NAME

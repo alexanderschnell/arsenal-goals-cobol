@@ -118,9 +118,62 @@ Both files are fixed-width, one record per line, described by the copybooks in `
 
 Every record is checked before it's used: numeric fields, value ranges, venue and type codes, stoppage time only after the 45th or 90th minute, own goals naming the player, result flags agreeing with the score, and each goal agreeing with its match on date, opponent and venue. Rejected records are listed with a reason and the run ends with RC 4 or higher, never silently.
 
-## Running on a Mainframe
+## Running on z/OS
 
-`jcl/GOALSTAT.jcl` is an illustrative z/OS job that compiles the program with the standard `IGYWCL` procedure and runs it, with in-stream control cards on `SYSIN`. The DD names (`MATCHES`, `GOALS`, `SYSIN`, `SYSOUT`, `SORTWK1`) are the program's `ASSIGN` names. Under GnuCOBOL, the run scripts map them to local files with `DD_` environment variables, so the same source runs in both places.
+The same source builds with IBM Enterprise COBOL on a mainframe. The JCL is written to IBM's documented syntax but hasn't been run on a real system yet. If you don't have a mainframe, IBM's free [IBM Z Xplore](https://www.ibm.com/products/z/resources/zxplore) learning program gives you a real z/OS account to try it on.
+
+### The JCL
+
+| Member | What it is |
+|---|---|
+| `jcl/ARSALLOC.jcl` | One-time setup job: creates the libraries and data sets with `IEFBR14` |
+| `jcl/proclib/ARSCL.jcl` | Proc that compiles (`IGYCRCTL`) and link-edits (`IEWBLINK`) one program |
+| `jcl/proclib/ARSRUN.jcl` | Proc that runs `GOALSTAT` with all its DD statements |
+| `jcl/GOALSTAT.jcl` | The job: builds the program, then runs one query |
+
+Most shops wrap their compile and run steps in in-house procs, so developers rarely see the raw IBM programs. `ARSCL` and `ARSRUN` play that role here. That keeps the job itself down to what's specific to one run:
+
+```jcl
+//BUILD    EXEC ARSCL,HLQ=&MYHLQ,MEMBER=GOALSTAT
+//BUILDOK  IF (BUILD.COBOL.RC <= 4 AND BUILD.LKED.RC <= 4) THEN
+//QUERY    EXEC ARSRUN,HLQ=&MYHLQ
+//RUN.SYSIN DD *
+PLAYER=SAKA
+VENUE=A
+/*
+//         ENDIF
+```
+
+The `IF` only runs the report if both build steps ended cleanly. A step that was skipped never passes an RC test, so a failed compile also stops the report.
+
+### Steps
+
+1. In every JCL member, change `YOURID` to your high-level qualifier (usually your user ID).
+2. Submit `ARSALLOC` to create the libraries and data sets.
+3. Upload the files, for example with the Zowe Explorer extension for VS Code:
+
+   | Local file | Upload to |
+   |---|---|
+   | `src/GOALSTAT.cbl` | `YOURID.ARSENAL.SOURCE(GOALSTAT)` |
+   | `copybooks/*.cpy` | `YOURID.ARSENAL.COPYLIB(MATCHREC)`, `(GOALREC)` |
+   | `jcl/proclib/*.jcl` | `YOURID.ARSENAL.PROCLIB(ARSCL)`, `(ARSRUN)` |
+   | `data/MATCHES.DAT` | `YOURID.ARSENAL.MATCHES.D2526` |
+   | `data/GOALS.DAT` | `YOURID.ARSENAL.GOALS.D2526` |
+
+4. If your site's compiler library isn't `IGY.V6R4M0.SIGYCOMP`, add `COBLIB=` with your site's name to the `EXEC ARSCL` line.
+5. Submit `GOALSTAT`. The report is in the `RPTOUT` output, the program's messages are in `SYSOUT`, and the compile listing is in `BUILD.COBOL.SYSPRINT`.
+
+To ask a different question, change the cards under `RUN.SYSIN`. To report on another season, load its data as `...MATCHES.D2627` and `...GOALS.D2627` and add `SEASON=D2627` to the `EXEC ARSRUN` line.
+
+### One source, two compilers
+
+| | GnuCOBOL (PC and CI) | Enterprise COBOL (z/OS) |
+|---|---|---|
+| Files | `LINE SEQUENTIAL` text files | Fixed-length `SEQUENTIAL` data sets (`RECFM=FB`) |
+| DD names | `DD_MATCHES` etc. environment variables | `//MATCHES DD` etc. in `ARSRUN` |
+| Sort messages | Not applicable | Routed to their own `SORTMSG` DD |
+
+The differences are handled with conditional compilation (`>>IF GNUCOBOL IS DEFINED`). The run scripts compile with `-D GNUCOBOL`, plus `-fassign-clause=external` so GnuCOBOL treats `ASSIGN TO MATCHES` as a DD name the way IBM COBOL does. The program's `ASSIGN` names are the DD names: `MATCHES`, `GOALS`, `SYSIN` and `RPTOUT` (the report). `SYSOUT` carries `DISPLAY` messages.
 
 ## Data Source and Limitations
 
@@ -139,7 +192,8 @@ If you spot an error, please open an issue.
 ├── copybooks/                MATCHREC and GOALREC record layouts
 ├── data/                     MATCHES.DAT and GOALS.DAT
 ├── cards/                    sample control cards (queries)
-├── jcl/GOALSTAT.jcl          illustrative z/OS job
+├── jcl/                      z/OS jobs: ARSALLOC (setup), GOALSTAT (build and run)
+│   └── proclib/              ARSCL (compile and link) and ARSRUN (run) procs
 ├── tests/run-tests.sh        regression tests
 ├── run.ps1, run.sh           compile and run
 └── .github/workflows/        GitHub Actions: build and test on every push
