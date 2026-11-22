@@ -1,0 +1,6 @@
+bin/
+reports/
+*.exe
+*.o
+*.so
+*.dll
