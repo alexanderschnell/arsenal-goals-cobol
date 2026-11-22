@@ -1,5 +1,7 @@
 # Arsenal Goals: a COBOL Batch Reporting System
 
+[![Build and test](https://github.com/alexanderschnell/arsenal-goals-cobol/actions/workflows/build.yml/badge.svg)](https://github.com/alexanderschnell/arsenal-goals-cobol/actions/workflows/build.yml)
+
 A mainframe-style COBOL program for querying every goal Arsenal scored in the **2025–26 Premier League** title-winning season. Filters go in as JCL-style control cards, and the program writes a 132-column batch report with sorted scorer tables, goal timing, home/away splits and reconciled control totals.
 
 It's built the way batch COBOL runs on z/OS: copybook record layouts, fixed-width data files, DD-name file assignment, `SORT` with input and output procedures, record validation, and return codes for the scheduler.
